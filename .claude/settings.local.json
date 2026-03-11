@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd D:/nolan_lab/all_in_one && python --version 2>&1; echo \"EXIT: $?\")",
+      "Bash(py --version)",
+      "Read(//usr/**)",
+      "Bash(cmd.exe /c \"where python 2>&1 & where py 2>&1 & echo PATH: & echo %PATH%\")",
+      "Bash(cmd.exe /c where python 2>&1)",
+      "Bash(python tests/smoke_test.py 2>&1)",
+      "Bash(python3 tests/smoke_test.py 2>&1)",
+      "Bash(py tests/smoke_test.py 2>&1)",
+      "Bash(/c/Users/andre/AppData/Local/Programs/Python/Python313/python.exe tests/smoke_test.py 2>&1)",
+      "Read(//c/Users/andre/AppData/Local/Programs/Python//**)",
+      "Read(//c/Users/andre//**)",
+      "Bash(/c/Users/andre/AppData/Local/Programs/Python/Python312/python.exe tests/smoke_test.py 2>&1)",
+      "Bash(/c/Users/andre/AppData/Local/Programs/Python/Python312/python.exe -c \"from integrated_pipeline.auto_midline import _needs_inversion, _classical_midline; print\\('auto_midline imports OK'\\)\" 2>&1 && /c/Users/andre/AppData/Local/Programs/Python/Python312/python.exe -c \"import integrated_pipeline.app; print\\('app imports OK'\\)\" 2>&1)",
+      "Bash(cd D:/nolan_lab/all_in_one && python tests/smoke_test.py 2>&1)",
+      "Read(//d D:/nolan_lab/**)",
+      "Bash(python3 tests/smoke_test.py)",
+      "Bash(py tests/smoke_test.py)",
+      "Bash(cmd /c \"python tests/smoke_test.py\" 2>&1)",
+      "Bash(cmd /c \"python tests/smoke_test.py 2>&1 && echo EXIT_OK || echo EXIT_FAIL\")",
+      "Bash(cmd /c \"python tests/smoke_test.py > C:/tmp/smoke_out.txt 2>&1 & echo launched\")",
+      "Bash(powershell -Command \"cd D:/nolan_lab/all_in_one; python tests/smoke_test.py 2>&1\")",
+      "Bash(powershell -Command \"cd D:/nolan_lab/all_in_one; python3 tests/smoke_test.py 2>&1\")",
+      "Bash(powershell -Command \"Get-Command py -ErrorAction SilentlyContinue; Get-Command python* | Select-Object -First 5\")",
+      "Bash(powershell -Command \"where.exe python; where.exe py; where.exe conda\" 2>&1)",
+      "Bash(powershell -Command \"Get-ChildItem 'C:/Users/andre/AppData/Local/Programs' -ErrorAction SilentlyContinue | Select Name; Get-ChildItem 'C:/ProgramData/Miniconda*','C:/ProgramData/Anaconda*','C:/Users/andre/miniconda3','C:/Users/andre/anaconda3' -ErrorAction SilentlyContinue | Select FullName\" 2>&1)",
+      "Bash(powershell -Command \"Get-ChildItem 'C:/Users/andre/AppData/Local/Programs/Python' -ErrorAction SilentlyContinue | Select FullName\" 2>&1)",
+      "Bash(powershell -Command \"cd D:/nolan_lab/all_in_one; & 'C:/Users/andre/AppData/Local/Programs/Python/Python312/python.exe' tests/smoke_test.py 2>&1\")",
+      "Bash(powershell -Command \"cd D:/nolan_lab/all_in_one; & 'C:/Users/andre/AppData/Local/Programs/Python/Python312/python.exe' -c 'from integrated_pipeline.analysis_widget import AnalysisWidget; print\\(\\\\\"AnalysisWidget import OK\\\\\"\\); from integrated_pipeline.ki_data_loader import load_profile; print\\(\\\\\"ki_data_loader import OK\\\\\"\\); from integrated_pipeline.app import MainWindow; print\\(\\\\\"MainWindow import OK\\\\\"\\)' 2>&1\")",
+      "Bash(powershell -Command \"cd D:/nolan_lab/all_in_one; & 'C:/Users/andre/AppData/Local/Programs/Python/Python312/python.exe' -c 'from integrated_pipeline.analysis_widget import AnalysisWidget; print\\(\\\\\"OK\\\\\"\\)' 2>&1\")",
+      "Bash(powershell -Command \"cd D:/nolan_lab/all_in_one; & 'C:/Users/andre/AppData/Local/Programs/Python/Python312/python.exe' -c 'from integrated_pipeline.analysis_widget import AnalysisWidget' 2>&1; echo exit:$LASTEXITCODE\")",
+      "Bash(powershell -Command \"New-Item -ItemType Directory -Force 'C:/Users/andre/.claude/projects/D--nolan-lab-all-in-one/memory'\" 2>&1)"
+    ]
+  }
+}

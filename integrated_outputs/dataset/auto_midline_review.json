@@ -1,0 +1,11 @@
+{
+  "method": "classical_threshold_midline",
+  "confidence": 1.0,
+  "approved": false,
+  "qc_point_xy": {
+    "x": 606.0,
+    "y": 539.0
+  },
+  "midline_num_points": 607,
+  "notes": ""
+}

@@ -1,0 +1,9 @@
+numpy
+scipy
+matplotlib
+tifffile
+pandas
+opencv-python
+PySide6
+streamlit
+streamlit-drawable-canvas
