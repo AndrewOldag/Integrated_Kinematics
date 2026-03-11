@@ -31,7 +31,10 @@
       "Bash(powershell -Command \"cd D:/nolan_lab/all_in_one; & 'C:/Users/andre/AppData/Local/Programs/Python/Python312/python.exe' -c 'from integrated_pipeline.analysis_widget import AnalysisWidget; print\\(\\\\\"AnalysisWidget import OK\\\\\"\\); from integrated_pipeline.ki_data_loader import load_profile; print\\(\\\\\"ki_data_loader import OK\\\\\"\\); from integrated_pipeline.app import MainWindow; print\\(\\\\\"MainWindow import OK\\\\\"\\)' 2>&1\")",
       "Bash(powershell -Command \"cd D:/nolan_lab/all_in_one; & 'C:/Users/andre/AppData/Local/Programs/Python/Python312/python.exe' -c 'from integrated_pipeline.analysis_widget import AnalysisWidget; print\\(\\\\\"OK\\\\\"\\)' 2>&1\")",
       "Bash(powershell -Command \"cd D:/nolan_lab/all_in_one; & 'C:/Users/andre/AppData/Local/Programs/Python/Python312/python.exe' -c 'from integrated_pipeline.analysis_widget import AnalysisWidget' 2>&1; echo exit:$LASTEXITCODE\")",
-      "Bash(powershell -Command \"New-Item -ItemType Directory -Force 'C:/Users/andre/.claude/projects/D--nolan-lab-all-in-one/memory'\" 2>&1)"
+      "Bash(powershell -Command \"New-Item -ItemType Directory -Force 'C:/Users/andre/.claude/projects/D--nolan-lab-all-in-one/memory'\" 2>&1)",
+      "Bash(cd D:/nolan_lab/all_in_one && \"C:/Users/andre/AppData/Local/Programs/Python/Python312/python.exe\" tests/smoke_test.py 2>&1)",
+      "Bash(cd D:/nolan_lab/all_in_one && \"C:/Users/andre/AppData/Local/Programs/Python/Python312/python.exe\" -c \"\nfrom integrated_pipeline.naming_config import NamingConfig\ncfg = NamingConfig\\(enabled=True\\)\nprint\\(cfg.derive_name\\('ctrl_60min_1'\\)\\)   # k_ctrl_60_1\nprint\\(cfg.derive_name\\('short'\\)\\)           # None \\(not enough tokens\\)\nprint\\(cfg.derive_name\\('wt_120min_3'\\)\\)    # k_wt_120_3\n\" 2>&1)",
+      "Bash(cd D:/nolan_lab/all_in_one && \"C:/Users/andre/AppData/Local/Programs/Python/Python312/python.exe\" -c \"\nfrom integrated_pipeline.pipeline_runner import run_batch, run_dataset\nfrom integrated_pipeline.analysis import save_analysis_ready_csv\nprint\\('imports OK'\\)\n\" 2>&1)"
     ]
   }
 }

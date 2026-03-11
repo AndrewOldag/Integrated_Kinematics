@@ -10,7 +10,8 @@ from typing import Callable, Literal, Optional
 
 import numpy as np
 
-from .analysis import run_steady_state_kinematics, save_results
+from .analysis import run_steady_state_kinematics, save_results, save_analysis_ready_csv
+from .naming_config import NamingConfig
 from .auto_midline import AutoMidlineResult, extract_auto_midline
 from .image_io import load_image_folder, load_image_stack, natural_sort_key
 from .manual_input import (
@@ -115,6 +116,7 @@ def run_dataset(
     auto_review_callback: Optional[Callable[[np.ndarray, AutoMidlineResult], bool]] = None,
     manual_trace_callback: Optional[Callable[[np.ndarray, float], np.ndarray]] = None,
     progress_callback: Optional[Callable[[str], None]] = None,
+    naming_config: Optional[NamingConfig] = None,
 ) -> PipelineResult:
     out_root = Path(output_root)
     out_dir = out_root / dataset.dataset_id
@@ -158,6 +160,21 @@ def run_dataset(
         )
         save_results(profile, out_dir)
         _write_run_metadata(dataset, out_dir, init_mode_used)
+
+        if naming_config is not None and naming_config.enabled:
+            folder_name = dataset.source_path.stem
+            csv_stem = naming_config.derive_name(folder_name)
+            if csv_stem is not None:
+                dest = Path(output_root) / naming_config.output_subdir / f"{csv_stem}.csv"
+                save_analysis_ready_csv(profile, dest)
+                if progress_callback:
+                    progress_callback(f"[{dataset.dataset_id}] analysis-ready: {dest.name}")
+            else:
+                if progress_callback:
+                    progress_callback(
+                        f"[{dataset.dataset_id}] WARNING: not enough tokens in '{folder_name}' for naming template"
+                    )
+
         return PipelineResult(dataset=dataset, output_dir=out_dir, init_mode_used=init_mode_used, status="ok")
     except Exception as exc:
         return PipelineResult(
@@ -182,6 +199,7 @@ def run_batch(
     auto_review_callback: Optional[Callable[[np.ndarray, AutoMidlineResult], bool]] = None,
     manual_trace_callback: Optional[Callable[[np.ndarray, float], np.ndarray]] = None,
     progress_callback: Optional[Callable[[str], None]] = None,
+    naming_config: Optional[NamingConfig] = None,
 ) -> list[PipelineResult]:
     datasets = discover_tiff_datasets(root_folder)
     if not datasets:
@@ -207,6 +225,7 @@ def run_batch(
             auto_review_callback=auto_review_callback,
             manual_trace_callback=manual_trace_callback,
             progress_callback=progress_callback,
+            naming_config=naming_config,
         )
         results.append(result)
     return results

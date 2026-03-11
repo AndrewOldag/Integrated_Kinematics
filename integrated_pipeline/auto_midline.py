@@ -88,32 +88,16 @@ def _classical_midline(first_frame: np.ndarray) -> AutoMidlineResult:
 def _try_deep_model_path(first_frame: np.ndarray, checkpoint_path: str) -> Optional[AutoMidlineResult]:
     """Best-effort adapter for DL path; returns None if unavailable."""
     try:
-        import importlib.util
-        import tempfile
-        from pathlib import Path as _Path
-
         import torch
-
-        # Load legacy predictor module directly from file path, without editing it.
-        legacy_root = _Path("D:/nolan_lab/root_midline_extraction")
-        predict_py = legacy_root / "predict.py"
-        if not predict_py.exists():
-            return None
-
-        spec = importlib.util.spec_from_file_location("legacy_predict", str(predict_py))
-        if spec is None or spec.loader is None:
-            return None
-        legacy_predict = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(legacy_predict)
-
+        from .dl_predict import predict_single
+        from .dl_model import build_model
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model = legacy_predict.build_model(device)
+        model = build_model(device)
         checkpoint = torch.load(checkpoint_path, weights_only=False, map_location=device)
         model.load_state_dict(checkpoint["model_state_dict"])
         model.eval()
-
         image_u8 = _to_uint8(first_frame)
-        result = legacy_predict.predict_single(model, image_u8, device)
+        result = predict_single(model, image_u8, device)
         coords = [(float(x), float(y)) for x, y in result["midline_coords"]]
         if not coords:
             return None
@@ -126,7 +110,7 @@ def _try_deep_model_path(first_frame: np.ndarray, checkpoint_path: str) -> Optio
             overlay_image=overlay,
             method="deep_model_predict_single",
             confidence=confidence,
-            notes="Loaded from legacy checkpoint path.",
+            notes="Loaded from bundled dl_predict module.",
         )
     except Exception:
         return None

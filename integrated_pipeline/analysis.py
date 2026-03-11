@@ -186,6 +186,17 @@ def save_results(profile: Dict, output_dir: Union[str, Path]) -> None:
     plt.close(fig)
 
 
+def save_analysis_ready_csv(profile: Dict, dest_path: Path) -> None:
+    import pandas as pd
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    df = pd.DataFrame({
+        "x_um": profile["l_domain"],
+        "velocity": profile["velocity_profile"],
+        "regr": profile["strain_profile"],
+    })
+    df.to_csv(dest_path, index=False)
+
+
 def _save_scalar(path: Path, value: float | None) -> None:
     if value is not None:
         np.savetxt(path, [value], delimiter=",", fmt="%.5g")

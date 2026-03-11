@@ -10,11 +10,13 @@ from PySide6.QtCore import QObject, Qt, QThread, Signal, Slot
 from PySide6.QtGui import QColor, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QDialog,
     QFileDialog,
     QFormLayout,
     QGridLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -34,6 +36,7 @@ from .analysis_widget import AnalysisWidget
 from .auto_midline import AutoMidlineResult
 from .data_loader import discover_output_profiles
 from .manual_input import trace_midline_on_image
+from .naming_config import NamingConfig
 from .pipeline_runner import PipelineResult, run_batch
 
 
@@ -55,6 +58,7 @@ class PipelineWorker(QObject):
         threshold: float,
         time_interval: float,
         time_unit: str,
+        naming_config: NamingConfig | None = None,
     ):
         super().__init__()
         self.root_folder = root_folder
@@ -66,6 +70,7 @@ class PipelineWorker(QObject):
         self.threshold = threshold
         self.time_interval = time_interval
         self.time_unit = time_unit
+        self.naming_config = naming_config
 
         self._auto_event = threading.Event()
         self._manual_event = threading.Event()
@@ -88,6 +93,7 @@ class PipelineWorker(QObject):
                 auto_review_callback=self._auto_review_callback,
                 manual_trace_callback=self._manual_trace_callback,
                 progress_callback=lambda text: self.status.emit(text),
+                naming_config=self.naming_config,
             )
             self.finished.emit(results)
         except Exception as exc:
@@ -271,7 +277,8 @@ class MainWindow(QMainWindow):
         form = QFormLayout(form_wrap)
         self.input_edit = QLineEdit()
         self.output_edit = QLineEdit(str(Path.cwd() / "integrated_outputs"))
-        self.ckpt_edit = QLineEdit()
+        _default_ckpt = str(Path(__file__).parent.parent / "models" / "root_midline_best.pth")
+        self.ckpt_edit = QLineEdit(_default_ckpt)
         self.mode_combo = QComboBox()
         self.mode_combo.addItems(["auto", "manual"])
         self.spacing_spin = QDoubleSpinBox()
@@ -307,6 +314,61 @@ class MainWindow(QMainWindow):
         form.addRow("Time unit", self.time_unit_edit)
         pipeline_layout.addWidget(form_wrap)
 
+        # --- Analysis-Ready Naming group box ---
+        naming_group = QGroupBox("Analysis-Ready Naming (for kinematics viewer)")
+        naming_form = QFormLayout(naming_group)
+
+        self.naming_enabled_check = QCheckBox("Enable naming template")
+        self.naming_delimiter_edit = QLineEdit("_")
+        self.naming_scope_edit = QLineEdit("k")
+        self.naming_cond_spin = QSpinBox()
+        self.naming_cond_spin.setRange(0, 9)
+        self.naming_cond_spin.setValue(0)
+        self.naming_time_spin = QSpinBox()
+        self.naming_time_spin.setRange(0, 9)
+        self.naming_time_spin.setValue(1)
+        self.naming_repl_spin = QSpinBox()
+        self.naming_repl_spin.setRange(0, 9)
+        self.naming_repl_spin.setValue(2)
+        self.naming_strip_check = QCheckBox("Strip non-numeric from time token")
+        self.naming_strip_check.setChecked(True)
+        self.naming_subdir_edit = QLineEdit("analysis_ready")
+        self.naming_preview_input = QLineEdit()
+        self.naming_preview_input.setPlaceholderText("e.g. ctrl_60min_1")
+        self.naming_preview_label = QLabel("(disabled)")
+
+        naming_form.addRow("", self.naming_enabled_check)
+        naming_form.addRow("Delimiter", self.naming_delimiter_edit)
+        naming_form.addRow("Scope code", self.naming_scope_edit)
+        naming_form.addRow("Condition token index", self.naming_cond_spin)
+        naming_form.addRow("Time token index", self.naming_time_spin)
+        naming_form.addRow("Replicate token index", self.naming_repl_spin)
+        naming_form.addRow("", self.naming_strip_check)
+        naming_form.addRow("Output subfolder", self.naming_subdir_edit)
+        naming_form.addRow("Preview folder name", self.naming_preview_input)
+        naming_form.addRow("\u2192 CSV name", self.naming_preview_label)
+
+        pipeline_layout.addWidget(naming_group)
+
+        self._naming_widgets = [
+            self.naming_delimiter_edit, self.naming_scope_edit,
+            self.naming_cond_spin, self.naming_time_spin, self.naming_repl_spin,
+            self.naming_strip_check, self.naming_subdir_edit,
+            self.naming_preview_input, self.naming_preview_label,
+        ]
+
+        self.naming_enabled_check.toggled.connect(self._toggle_naming_widgets)
+        self.naming_delimiter_edit.textChanged.connect(self._update_naming_preview)
+        self.naming_scope_edit.textChanged.connect(self._update_naming_preview)
+        self.naming_cond_spin.valueChanged.connect(self._update_naming_preview)
+        self.naming_time_spin.valueChanged.connect(self._update_naming_preview)
+        self.naming_repl_spin.valueChanged.connect(self._update_naming_preview)
+        self.naming_strip_check.toggled.connect(self._update_naming_preview)
+        self.naming_subdir_edit.textChanged.connect(self._update_naming_preview)
+        self.naming_preview_input.textChanged.connect(self._update_naming_preview)
+
+        self._toggle_naming_widgets(False)
+
         actions = QHBoxLayout()
         self.run_btn = QPushButton("Run integrated pipeline")
         self.refresh_btn = QPushButton("Refresh summary")
@@ -332,6 +394,45 @@ class MainWindow(QMainWindow):
         # --- Analysis tab ---
         self._analysis_widget = AnalysisWidget()
         self._tabs.addTab(self._analysis_widget, "\U0001F4CA Analysis")
+
+    @Slot(bool)
+    def _toggle_naming_widgets(self, enabled: bool) -> None:
+        for w in self._naming_widgets:
+            w.setEnabled(enabled)
+
+    @Slot()
+    def _update_naming_preview(self) -> None:
+        if not self.naming_enabled_check.isChecked():
+            self.naming_preview_label.setText("(disabled)")
+            self.naming_preview_label.setStyleSheet("")
+            return
+        cfg = self._build_naming_config()
+        folder_name = self.naming_preview_input.text().strip()
+        if not folder_name:
+            self.naming_preview_label.setText("(enter a sample folder name)")
+            self.naming_preview_label.setStyleSheet("color: gray;")
+            return
+        result = cfg.derive_name(folder_name) if cfg is not None else None
+        if result is None:
+            self.naming_preview_label.setText("\u26a0 Not enough tokens")
+            self.naming_preview_label.setStyleSheet("color: red;")
+        else:
+            self.naming_preview_label.setText(f"{result}.csv")
+            self.naming_preview_label.setStyleSheet("color: green;")
+
+    def _build_naming_config(self) -> NamingConfig | None:
+        if not self.naming_enabled_check.isChecked():
+            return None
+        return NamingConfig(
+            enabled=True,
+            delimiter=self.naming_delimiter_edit.text() or "_",
+            scope_code=self.naming_scope_edit.text() or "k",
+            condition_token_index=self.naming_cond_spin.value(),
+            time_token_index=self.naming_time_spin.value(),
+            replicate_token_index=self.naming_repl_spin.value(),
+            strip_non_numeric_from_time=self.naming_strip_check.isChecked(),
+            output_subdir=self.naming_subdir_edit.text() or "analysis_ready",
+        )
 
     @Slot(str)
     def _update_ckpt_status(self, text: str) -> None:
@@ -382,6 +483,7 @@ class MainWindow(QMainWindow):
             threshold=float(self.threshold_spin.value()),
             time_interval=float(self.time_interval_spin.value()),
             time_unit=self.time_unit_edit.text().strip() or "frame",
+            naming_config=self._build_naming_config(),
         )
         self._worker.moveToThread(self._worker_thread)
         self._worker_thread.started.connect(self._worker.run)
