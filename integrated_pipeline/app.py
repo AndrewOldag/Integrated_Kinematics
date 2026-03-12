@@ -6,7 +6,7 @@ import threading
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import QObject, Qt, QThread, Signal, Slot
+from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal, Slot
 from PySide6.QtGui import QColor, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QPlainTextEdit,
     QProgressBar,
+    QSlider,
     QSpinBox,
     QDoubleSpinBox,
     QTabWidget,
@@ -44,6 +45,7 @@ class PipelineWorker(QObject):
     finished = Signal(list)
     failed = Signal(str)
     status = Signal(str)
+    tracking_data = Signal(object)  # list of frame dicts, emitted once after all tracking is done
     request_auto_review = Signal(object, object)
     request_manual_trace = Signal(object, float)
 
@@ -80,6 +82,18 @@ class PipelineWorker(QObject):
     @Slot()
     def run(self) -> None:
         try:
+            disk_r = self.disk_radius
+            collected: list[dict] = []
+
+            def _frame_cb(frame_idx: int, total: int, image: np.ndarray, points: np.ndarray) -> None:
+                collected.append({
+                    "frame_idx": frame_idx,
+                    "total": total,
+                    "image": image,
+                    "points": points,
+                    "disk_radius": disk_r,
+                })
+
             results = run_batch(
                 root_folder=self.root_folder,
                 output_root=self.output_root,
@@ -94,7 +108,10 @@ class PipelineWorker(QObject):
                 manual_trace_callback=self._manual_trace_callback,
                 progress_callback=lambda text: self.status.emit(text),
                 naming_config=self.naming_config,
+                tracking_frame_callback=_frame_cb,
             )
+            if collected:
+                self.tracking_data.emit(collected)
             self.finished.emit(results)
         except Exception as exc:
             self.failed.emit(str(exc))
@@ -249,6 +266,132 @@ class ManualTraceDialog(QDialog):
 
     def points_image_xy(self) -> list[tuple[float, float]]:
         return self._trace_label.points()
+
+
+class TrackingPlaybackDialog(QDialog):
+    """Post-run playback dialog: scrub through tracked frames with disk + midline overlay."""
+
+    _PLAY_INTERVAL_MS = 150  # ~6.6 fps
+
+    def __init__(self, frames: list, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Tracking Playback")
+        self.setMinimumSize(960, 660)
+        self.setAttribute(Qt.WA_DeleteOnClose)
+        self._frames = frames
+        self._current = 0
+        self._playing = False
+
+        self._timer = QTimer(self)
+        self._timer.setInterval(self._PLAY_INTERVAL_MS)
+        self._timer.timeout.connect(self._step_forward)
+
+        layout = QVBoxLayout(self)
+
+        self._img_label = QLabel()
+        self._img_label.setAlignment(Qt.AlignCenter)
+        self._img_label.setMinimumHeight(480)
+        layout.addWidget(self._img_label, stretch=1)
+
+        self._counter = QLabel()
+        self._counter.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self._counter)
+
+        self._slider = QSlider(Qt.Horizontal)
+        self._slider.setMinimum(0)
+        self._slider.setMaximum(max(0, len(frames) - 1))
+        self._slider.valueChanged.connect(self._on_slider)
+        layout.addWidget(self._slider)
+
+        btn_row = QHBoxLayout()
+        self._rewind_btn = QPushButton("\u23ee Rewind")
+        self._prev_btn = QPushButton("\u25c4 Prev")
+        self._play_btn = QPushButton("\u25b6 Play")
+        self._next_btn = QPushButton("Next \u25ba")
+        close_btn = QPushButton("Close")
+        self._rewind_btn.clicked.connect(self._rewind)
+        self._prev_btn.clicked.connect(self._step_back)
+        self._play_btn.clicked.connect(self._toggle_play)
+        self._next_btn.clicked.connect(self._step_forward)
+        close_btn.clicked.connect(self.close)
+        for b in [self._rewind_btn, self._prev_btn, self._play_btn, self._next_btn, close_btn]:
+            btn_row.addWidget(b)
+        layout.addLayout(btn_row)
+
+        self._show_frame(0)
+
+    def _show_frame(self, idx: int) -> None:
+        idx = max(0, min(idx, len(self._frames) - 1))
+        self._current = idx
+        self._slider.blockSignals(True)
+        self._slider.setValue(idx)
+        self._slider.blockSignals(False)
+
+        data = self._frames[idx]
+        image: np.ndarray = data["image"]
+        points: np.ndarray = data["points"]
+        disk_radius: int = data.get("disk_radius", 28)
+        self._counter.setText(f"Frame {data['frame_idx']} / {data['total']}")
+
+        img_w = image.shape[1]
+        qimg = _np_to_qimage(image)
+        full_pix = QPixmap.fromImage(qimg)
+
+        label_w = max(self._img_label.width(), 860)
+        scaled_pix = full_pix.scaled(label_w, 480, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        scale = scaled_pix.width() / img_w
+
+        painter = QPainter(scaled_pix)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        pts = [(int(col * scale), int(row * scale)) for row, col in points]
+        painter.setPen(QPen(QColor(0, 220, 0), 2))
+        for i in range(1, len(pts)):
+            painter.drawLine(*pts[i - 1], *pts[i])
+
+        r = max(2, int(disk_radius * scale))
+        painter.setPen(QPen(QColor(0, 180, 255), 1))
+        for x, y in pts:
+            painter.drawEllipse(x - r, y - r, 2 * r, 2 * r)
+
+        painter.end()
+        self._img_label.setPixmap(scaled_pix)
+
+    def _on_slider(self, value: int) -> None:
+        self._show_frame(value)
+
+    def _rewind(self) -> None:
+        self._timer.stop()
+        self._playing = False
+        self._play_btn.setText("\u25b6 Play")
+        self._show_frame(0)
+
+    def _step_back(self) -> None:
+        self._show_frame(self._current - 1)
+
+    def _step_forward(self) -> None:
+        if self._current >= len(self._frames) - 1:
+            self._timer.stop()
+            self._playing = False
+            self._play_btn.setText("\u25b6 Play")
+        else:
+            self._show_frame(self._current + 1)
+
+    def _toggle_play(self) -> None:
+        if self._playing:
+            self._timer.stop()
+            self._playing = False
+            self._play_btn.setText("\u25b6 Play")
+        else:
+            if self._current >= len(self._frames) - 1:
+                self._show_frame(0)
+            self._playing = True
+            self._play_btn.setText("\u23f8 Pause")
+            self._timer.start()
+
+    def closeEvent(self, event) -> None:
+        self._timer.stop()
+        super().closeEvent(event)
 
 
 class MainWindow(QMainWindow):
@@ -488,6 +631,7 @@ class MainWindow(QMainWindow):
         self._worker.moveToThread(self._worker_thread)
         self._worker_thread.started.connect(self._worker.run)
         self._worker.status.connect(self._on_status)
+        self._worker.tracking_data.connect(self._on_tracking_data)
         self._worker.request_auto_review.connect(self._on_request_auto_review)
         self._worker.request_manual_trace.connect(self._on_request_manual_trace)
         self._worker.finished.connect(self._on_finished)
@@ -536,6 +680,11 @@ class MainWindow(QMainWindow):
             self._worker.set_manual_response(traced_xy)
         except Exception:
             self._worker.set_manual_response(None)
+
+    @Slot(object)
+    def _on_tracking_data(self, frames: list) -> None:
+        dlg = TrackingPlaybackDialog(frames, parent=self)
+        dlg.show()
 
     @Slot(list)
     def _on_finished(self, results: list) -> None:

@@ -93,6 +93,7 @@ def run_steady_state_kinematics(
     time_interval: float = 1.0,
     time_unit: str = "frame",
     progress_callback: Optional[Callable[[str, int, int], None]] = None,
+    frame_viz_callback: Optional[Callable[[int, int, np.ndarray, np.ndarray], None]] = None,
 ) -> Dict:
     if isinstance(images, (str, Path)):
         path = Path(images)
@@ -115,6 +116,7 @@ def run_steady_state_kinematics(
         disk_radius=disk_radius,
         threshold=threshold,
         progress_callback=_tracking_cb,
+        frame_viz_callback=frame_viz_callback,
     )
 
     if progress_callback:

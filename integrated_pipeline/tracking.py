@@ -17,6 +17,7 @@ def track_points(
     threshold: float = 10.0,
     n_angular: int = 200,
     progress_callback: Optional[Callable[[int, int], None]] = None,
+    frame_viz_callback: Optional[Callable[[int, int, np.ndarray, np.ndarray], None]] = None,
 ) -> np.ndarray:
     n_frames = images.shape[0]
     n_points = initial_points.shape[0]
@@ -41,6 +42,8 @@ def track_points(
 
         if progress_callback:
             progress_callback(t + 1, n_frames - 1)
+        if frame_viz_callback:
+            frame_viz_callback(t + 1, n_frames - 1, g_frame, point_list[:, :, t + 1].copy())
 
     return point_list
 

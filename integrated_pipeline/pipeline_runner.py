@@ -117,6 +117,7 @@ def run_dataset(
     manual_trace_callback: Optional[Callable[[np.ndarray, float], np.ndarray]] = None,
     progress_callback: Optional[Callable[[str], None]] = None,
     naming_config: Optional[NamingConfig] = None,
+    tracking_frame_callback: Optional[Callable[[int, int, np.ndarray, np.ndarray], None]] = None,
 ) -> PipelineResult:
     out_root = Path(output_root)
     out_dir = out_root / dataset.dataset_id
@@ -157,6 +158,7 @@ def run_dataset(
             threshold=threshold,
             time_interval=time_interval,
             time_unit=time_unit,
+            frame_viz_callback=tracking_frame_callback,
         )
         save_results(profile, out_dir)
         _write_run_metadata(dataset, out_dir, init_mode_used)
@@ -200,6 +202,7 @@ def run_batch(
     manual_trace_callback: Optional[Callable[[np.ndarray, float], np.ndarray]] = None,
     progress_callback: Optional[Callable[[str], None]] = None,
     naming_config: Optional[NamingConfig] = None,
+    tracking_frame_callback: Optional[Callable[[int, int, np.ndarray, np.ndarray], None]] = None,
 ) -> list[PipelineResult]:
     datasets = discover_tiff_datasets(root_folder)
     if not datasets:
@@ -226,6 +229,7 @@ def run_batch(
             manual_trace_callback=manual_trace_callback,
             progress_callback=progress_callback,
             naming_config=naming_config,
+            tracking_frame_callback=tracking_frame_callback,
         )
         results.append(result)
     return results
