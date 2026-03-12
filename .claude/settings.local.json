@@ -37,7 +37,10 @@
       "Bash(cd D:/nolan_lab/all_in_one && \"C:/Users/andre/AppData/Local/Programs/Python/Python312/python.exe\" -c \"\nfrom integrated_pipeline.pipeline_runner import run_batch, run_dataset\nfrom integrated_pipeline.analysis import save_analysis_ready_csv\nprint\\('imports OK'\\)\n\" 2>&1)",
       "Bash(grep -n \"progress_callback\" \"D:/nolan_lab/all_in_one/integrated_pipeline/\"*.py)",
       "Bash(cd D:/nolan_lab/all_in_one && \"C:/Users/andre/AppData/Local/Programs/Python/Python312/python.exe\" -c \"import ast; ast.parse\\(open\\('integrated_pipeline/app.py'\\).read\\(\\)\\); print\\('app.py OK'\\)\" && \"C:/Users/andre/AppData/Local/Programs/Python/Python312/python.exe\" -c \"import ast; ast.parse\\(open\\('integrated_pipeline/tracking.py'\\).read\\(\\)\\); print\\('tracking.py OK'\\)\" && \"C:/Users/andre/AppData/Local/Programs/Python/Python312/python.exe\" -c \"import ast; ast.parse\\(open\\('integrated_pipeline/analysis.py'\\).read\\(\\)\\); print\\('analysis.py OK'\\)\" && \"C:/Users/andre/AppData/Local/Programs/Python/Python312/python.exe\" -c \"import ast; ast.parse\\(open\\('integrated_pipeline/pipeline_runner.py'\\).read\\(\\)\\); print\\('pipeline_runner.py OK'\\)\")",
-      "Bash(cd D:/nolan_lab/all_in_one && \"C:/Users/andre/AppData/Local/Programs/Python/Python312/python.exe\" -c \"import ast; ast.parse\\(open\\('integrated_pipeline/app.py'\\).read\\(\\)\\); print\\('OK'\\)\")"
+      "Bash(cd D:/nolan_lab/all_in_one && \"C:/Users/andre/AppData/Local/Programs/Python/Python312/python.exe\" -c \"import ast; ast.parse\\(open\\('integrated_pipeline/app.py'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(cd D:/nolan_lab/all_in_one && GIT_LFS_SKIP_SMUDGE=1 git pull --rebase 2>&1)",
+      "Bash(copy \"D:\\\\nolan_lab\\\\root_midline_extraction\\\\output\\\\checkpoints\\\\best_model.pth\" \"D:\\\\nolan_lab\\\\all_in_one\\\\models\\\\root_midline_best.pth\")",
+      "Bash(powershell -Command \"Copy-Item 'D:/nolan_lab/root_midline_extraction/output/checkpoints/best_model.pth' 'D:/nolan_lab/all_in_one/models/root_midline_best.pth'\")"
     ]
   }
 }
