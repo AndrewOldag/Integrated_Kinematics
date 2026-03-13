@@ -49,7 +49,7 @@ IMAGE_SIZE = (512, 512)  # (H, W)
 
 # Encoder backbone (from segmentation-models-pytorch)
 ENCODER_NAME = "resnet34"
-ENCODER_WEIGHTS = "imagenet"
+ENCODER_WEIGHTS = None  # Not needed at inference — checkpoint weights are loaded directly
 
 # Number of input channels (grayscale = 1)
 IN_CHANNELS = 1
