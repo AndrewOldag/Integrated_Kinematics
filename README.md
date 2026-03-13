@@ -1,44 +1,58 @@
-# All-in-one integrated pipeline
+# All-in-One Root Kinematics
 
-This project contains an isolated implementation that combines:
+A PySide6 desktop app that combines root midline initialization, affine patch tracking, and steady-state kinematics analysis into a single pipeline.
 
-- manual root midline tracing and tracking,
-- automatic first-frame midline extraction with user approval/deny,
-- fallback to manual tracing when auto is denied,
-- steady-state kinematics analysis and CSV outputs.
+## Features
 
-Legacy projects remain untouched.
+- **Auto midline detection** — classical Otsu threshold + per-column medians, with optional deep-learning upgrade via a PyTorch checkpoint
+- **Manual midline tracing** — click-trace on the first frame in a PySide6 dialog
+- **Affine patch tracking** — Lucas-Kanade iterative tracking propagates midline points frame-to-frame
+- **Kinematics analysis** — logistic velocity profile fit, REGR/strain profiles, Evans/percent/absolute growth zone metrics
+- **Analysis viewer** — second tab for browsing and comparing completed run outputs
+- **SlideBook support** — `.sldy` files are discovered and processed alongside TIFFs (requires `slidebook-python`)
 
-## Run the UI
+## Install
+
+```bash
+pip install -r requirements.txt
+```
+
+## Run
 
 ```bash
 python main.py
 ```
 
-## Run the Streamlit UI
+## Input formats
 
-```bash
-streamlit run streamlit_app.py
-```
+| Format | How it's detected |
+|---|---|
+| Folder of TIFFs (2+ files) | Treated as a frame sequence |
+| Single multi-page TIFF | Treated as an image stack |
+| `.sldy` file | Loaded via `slidebook-python` |
 
-Manual tracing in Streamlit supports drawing directly on the first frame via
-an in-browser canvas (tip -> base).
+Point the pipeline at a root folder — all datasets underneath it are discovered and processed in batch.
 
-## Output contract
+## Output
 
-Each processed dataset writes a folder containing:
+Each processed dataset writes to `<output_root>/<dataset_id>/`:
 
-- `rawData.csv`
-- `fitData.csv`
-- `xyCoord.csv`
-- `REGR_peak_location.csv`
-- `REGR_peak_value.csv`
-- `EVANS_zone.csv`, `PERCENT_zone.csv`, `ABS_zone.csv`
-- `run_metadata.json`
-- `auto_midline_review.json` (auto mode only)
+| File | Contents |
+|---|---|
+| `rawData.csv` | Raw (distance, velocity) scatter |
+| `fitData.csv` | Fitted (l, velocity, strain) profiles |
+| `xyCoord.csv` | Tracked point coordinates per frame |
+| `REGR_peak_location.csv` | Location of peak strain rate |
+| `REGR_peak_value.csv` | Peak strain rate value |
+| `EVANS_zone.csv`, `PERCENT_zone.csv`, `ABS_zone.csv` | Growth zone masks (+ `_width` scalars) |
+| `REGR.png` | Velocity and strain rate plot |
+| `run_metadata.json` | Dataset info and initialization mode |
+| `auto_midline_review.json` | Auto method, confidence, approval (auto mode only) |
 
 ## Smoke test
 
 ```bash
 python tests/smoke_test.py
 ```
+
+Runs the full pipeline on synthetic data non-interactively and exits with `Smoke tests passed.`
