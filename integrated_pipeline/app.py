@@ -61,6 +61,7 @@ class PipelineWorker(QObject):
         time_interval: float,
         time_unit: str,
         naming_config: NamingConfig | None = None,
+        training_data_dir: str | None = None,
     ):
         super().__init__()
         self.root_folder = root_folder
@@ -73,6 +74,7 @@ class PipelineWorker(QObject):
         self.time_interval = time_interval
         self.time_unit = time_unit
         self.naming_config = naming_config
+        self.training_data_dir = training_data_dir
 
         self._auto_event = threading.Event()
         self._manual_event = threading.Event()
@@ -109,6 +111,7 @@ class PipelineWorker(QObject):
                 progress_callback=lambda text: self.status.emit(text),
                 naming_config=self.naming_config,
                 tracking_frame_callback=_frame_cb,
+                training_data_dir=self.training_data_dir,
             )
             if collected:
                 self.tracking_data.emit(collected)
@@ -455,6 +458,28 @@ class MainWindow(QMainWindow):
         form.addRow("Threshold", self.threshold_spin)
         form.addRow("Time interval", self.time_interval_spin)
         form.addRow("Time unit", self.time_unit_edit)
+
+        # Training data collection row
+        self.collect_train_check = QCheckBox("Collect training data")
+        _default_train_dir = str(Path(self.output_edit.text()) / "training_samples")
+        self.train_data_edit = QLineEdit(_default_train_dir)
+        self.train_data_edit.setEnabled(False)
+        self._train_browse_btn = QPushButton("Browse")
+        self._train_browse_btn.setEnabled(False)
+        self._train_browse_btn.clicked.connect(self._pick_train_data_dir)
+        self.collect_train_check.toggled.connect(self._toggle_train_widgets)
+        self.output_edit.textChanged.connect(self._sync_train_dir)
+        self._train_dir_user_edited = False
+        self.train_data_edit.textEdited.connect(self._on_train_dir_edited)
+
+        train_row = QWidget()
+        train_row_layout = QGridLayout(train_row)
+        train_row_layout.setContentsMargins(0, 0, 0, 0)
+        train_row_layout.setColumnStretch(0, 1)
+        train_row_layout.addWidget(self.train_data_edit, 0, 0)
+        train_row_layout.addWidget(self._train_browse_btn, 0, 1)
+        form.addRow(self.collect_train_check, train_row)
+
         pipeline_layout.addWidget(form_wrap)
 
         # --- Analysis-Ready Naming group box ---
@@ -605,6 +630,26 @@ class MainWindow(QMainWindow):
         if value:
             self.ckpt_edit.setText(value)
 
+    def _pick_train_data_dir(self) -> None:
+        value = QFileDialog.getExistingDirectory(self, "Select training data folder")
+        if value:
+            self._train_dir_user_edited = True
+            self.train_data_edit.setText(value)
+
+    @Slot(bool)
+    def _toggle_train_widgets(self, enabled: bool) -> None:
+        self.train_data_edit.setEnabled(enabled)
+        self._train_browse_btn.setEnabled(enabled)
+
+    @Slot(str)
+    def _sync_train_dir(self, output_text: str) -> None:
+        if not self._train_dir_user_edited:
+            self.train_data_edit.setText(str(Path(output_text) / "training_samples"))
+
+    @Slot()
+    def _on_train_dir_edited(self) -> None:
+        self._train_dir_user_edited = True
+
     def _start_run(self) -> None:
         root_folder = self.input_edit.text().strip()
         if not root_folder:
@@ -616,6 +661,7 @@ class MainWindow(QMainWindow):
         self.status_label.setText("Running...")
 
         self._worker_thread = QThread()
+        train_dir = self.train_data_edit.text().strip() if self.collect_train_check.isChecked() else None
         self._worker = PipelineWorker(
             root_folder=root_folder,
             output_root=self.output_edit.text().strip(),
@@ -627,6 +673,7 @@ class MainWindow(QMainWindow):
             time_interval=float(self.time_interval_spin.value()),
             time_unit=self.time_unit_edit.text().strip() or "frame",
             naming_config=self._build_naming_config(),
+            training_data_dir=train_dir,
         )
         self._worker.moveToThread(self._worker_thread)
         self._worker_thread.started.connect(self._worker.run)

@@ -1,10 +1,14 @@
 # Data directories — never commit raw image data
 Irene/
+20260306/
 integrated_outputs/
+test_output/
+training_samples/
 
 # Python
 __pycache__/
 *.py[cod]
+*.pyc
 *.pyo
 .venv/
 venv/

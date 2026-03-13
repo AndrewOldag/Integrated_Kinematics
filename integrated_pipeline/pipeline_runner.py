@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Literal, Optional
 
@@ -145,6 +146,7 @@ def run_dataset(
     progress_callback: Optional[Callable[[str], None]] = None,
     naming_config: Optional[NamingConfig] = None,
     tracking_frame_callback: Optional[Callable[[int, int, np.ndarray, np.ndarray], None]] = None,
+    training_data_dir: Optional[str | Path] = None,
 ) -> PipelineResult:
     out_root = Path(output_root)
     out_dir = out_root / dataset.dataset_id
@@ -156,6 +158,7 @@ def run_dataset(
         initial_points: np.ndarray
         init_mode_used: PipelineResult.__annotations__["init_mode_used"] = "manual"
 
+        collected_coords_xy: Optional[list] = None
         if mode == "auto":
             auto_result = extract_auto_midline(first_frame, checkpoint_path=checkpoint_path)
             reviewer = auto_review_callback or _default_auto_review
@@ -163,17 +166,23 @@ def run_dataset(
             if approved:
                 initial_points = auto_coords_to_initial_points(auto_result.midline_coords_xy, spacing_px=spacing_px)
                 init_mode_used = "auto_approved"
+                collected_coords_xy = [list(p) for p in auto_result.midline_coords_xy]
             else:
                 tracer = manual_trace_callback or _default_manual_trace
                 traced_xy = tracer(first_frame, spacing_px)
                 initial_points = manual_coords_to_initial_points(traced_xy, spacing_px=spacing_px)
                 init_mode_used = "auto_denied_manual"
+                collected_coords_xy = traced_xy.tolist() if hasattr(traced_xy, "tolist") else [list(p) for p in traced_xy]
             _write_auto_metadata(out_dir, auto_result, approved=approved)
         else:
             tracer = manual_trace_callback or _default_manual_trace
             traced_xy = tracer(first_frame, spacing_px)
             initial_points = manual_coords_to_initial_points(traced_xy, spacing_px=spacing_px)
             init_mode_used = "manual"
+            collected_coords_xy = traced_xy.tolist() if hasattr(traced_xy, "tolist") else [list(p) for p in traced_xy]
+
+        if training_data_dir is not None and collected_coords_xy is not None:
+            _save_training_sample(training_data_dir, dataset.dataset_id, first_frame, collected_coords_xy, init_mode_used)
 
         if progress_callback:
             progress_callback(f"[{dataset.dataset_id}] running tracking and kinematics")
@@ -230,6 +239,7 @@ def run_batch(
     progress_callback: Optional[Callable[[str], None]] = None,
     naming_config: Optional[NamingConfig] = None,
     tracking_frame_callback: Optional[Callable[[int, int, np.ndarray, np.ndarray], None]] = None,
+    training_data_dir: Optional[str | Path] = None,
 ) -> list[PipelineResult]:
     datasets = discover_tiff_datasets(root_folder) + discover_sldy_datasets(root_folder)
     datasets = sorted(datasets, key=lambda ds: ds.dataset_id)
@@ -258,6 +268,7 @@ def run_batch(
             progress_callback=progress_callback,
             naming_config=naming_config,
             tracking_frame_callback=tracking_frame_callback,
+            training_data_dir=training_data_dir,
         )
         results.append(result)
     return results
@@ -324,3 +335,49 @@ def _write_run_metadata(dataset: DatasetSpec, output_dir: Path, init_mode_used: 
 def _sanitize_id(raw: str) -> str:
     cleaned = re.sub(r"[^a-zA-Z0-9_-]+", "_", raw).strip("_")
     return cleaned or "dataset"
+
+
+def _normalize_to_uint8(arr: np.ndarray) -> np.ndarray:
+    a = arr.astype(np.float64)
+    lo, hi = a.min(), a.max()
+    if hi <= 1.0:
+        a = a * 255.0
+    elif hi > 255.0:
+        a = (a - lo) / (hi - lo) * 255.0 if hi > lo else a * 0.0
+    return np.clip(a, 0, 255).astype(np.uint8)
+
+
+def _save_training_sample(
+    training_data_dir: str | Path,
+    dataset_id: str,
+    image: np.ndarray,
+    coords_xy: list,
+    mode: str,
+) -> None:
+    try:
+        ts_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        sample_dir = Path(training_data_dir) / f"{dataset_id}_{ts_ms}"
+        sample_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            import cv2
+            img_u8 = _normalize_to_uint8(image)
+            cv2.imwrite(str(sample_dir / "image.png"), img_u8)
+        except ImportError:
+            # cv2 not available — fall back to a simple PGM write
+            img_u8 = _normalize_to_uint8(image)
+            h, w = img_u8.shape[:2]
+            pgm_path = sample_dir / "image.png"
+            with open(pgm_path, "wb") as fh:
+                fh.write(f"P5\n{w} {h}\n255\n".encode())
+                fh.write(img_u8.tobytes())
+
+        meta = {
+            "coords_xy": coords_xy,
+            "mode": mode,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        with open(sample_dir / "coords.json", "w", encoding="utf-8") as fh:
+            json.dump(meta, fh, indent=2)
+    except Exception:
+        pass  # Never block the pipeline
