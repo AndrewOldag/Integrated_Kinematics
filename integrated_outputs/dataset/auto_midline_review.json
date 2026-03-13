@@ -1,11 +1,11 @@
 {
-  "method": "classical_threshold_midline",
-  "confidence": 1.0,
+  "method": "deep_model_predict_single",
+  "confidence": 0.485,
   "approved": false,
   "qc_point_xy": {
-    "x": 606.0,
-    "y": 539.0
+    "x": 469.0,
+    "y": 329.0
   },
-  "midline_num_points": 607,
-  "notes": ""
+  "midline_num_points": 97,
+  "notes": "Loaded from bundled dl_predict module."
 }

@@ -8,9 +8,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Desktop UI (PySide6)
 python main.py
 
-# Streamlit UI (browser-based, supports canvas drawing)
-streamlit run streamlit_app.py
-
 # Smoke test (non-interactive, uses synthetic data)
 python tests/smoke_test.py
 ```
@@ -19,14 +16,14 @@ Install dependencies: `pip install -r requirements.txt`
 
 ## Architecture
 
-All logic lives in the `integrated_pipeline/` package. `main.py` and `streamlit_app.py` are thin launchers.
+All logic lives in the `integrated_pipeline/` package. `main.py` is the thin launcher.
 
 ### Data flow
 
 1. **Discovery** — `pipeline_runner.discover_tiff_datasets()` scans a root folder for TIFF datasets. Directories with 2+ TIFFs become `folder_sequence` datasets; lone TIFFs become `single_stack` datasets.
 2. **Midline initialization** — for each dataset's first frame, get ordered (x, y) points along the root midline, tip → base, using either:
    - **Auto** (`auto_midline.extract_auto_midline`): classical Otsu threshold + per-column medians, optionally upgraded with a PyTorch checkpoint loaded from the legacy module at `D:/nolan_lab/root_midline_extraction/predict.py`. User approves or denies the result.
-   - **Manual** (`manual_input.trace_midline_on_image`): Matplotlib click-trace (desktop) or `streamlit-drawable-canvas` freedraw (Streamlit).
+   - **Manual** (`manual_input.trace_midline_on_image`): Matplotlib click-trace or PySide6 dialog click-trace.
 3. **Coordinate conversion** — `manual_input.resample_polyline_xy` resamples to fixed `spacing_px`, then `coords_xy_to_rowcol` converts (x, y) → (row, col) for the tracker.
 4. **Tracking** — `tracking.track_points` propagates points frame-to-frame using iterative affine patch matching on disk-shaped neighborhoods (`domain.create_disk_domain`). Points whose column is below `threshold` are frozen (root base).
 5. **Kinematics analysis** — `analysis.steady_state_analysis` computes velocity and strain profiles by fitting a logistic model (`fitting.fit_logistic`) to raw displacement data. `analysis.compute_growth_zone_metrics` adds Evans, percent, and absolute growth zone widths.
@@ -38,7 +35,6 @@ All logic lives in the `integrated_pipeline/` package. `main.py` and `streamlit_
 |---|---|
 | `pipeline_runner.py` | `DatasetSpec`, `PipelineResult`, `run_dataset`, `run_batch`; orchestrates the full flow with callback hooks for UI interaction |
 | `app.py` | PySide6 `MainWindow`; uses `QThread` + `threading.Event` to bridge blocking worker callbacks to the GUI |
-| `streamlit_app.py` | Streamlit UI; single-dataset interactive mode and full batch shortcut |
 | `analysis.py` | `run_steady_state_kinematics`, `steady_state_analysis`, `compute_growth_zone_metrics`, `save_results` |
 | `tracking.py` | Affine Lucas-Kanade patch tracking via `scipy.ndimage.map_coordinates` |
 | `auto_midline.py` | Classical and (optional) deep-learning midline extraction; `AutoMidlineResult` dataclass |

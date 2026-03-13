@@ -49,6 +49,72 @@ def load_image_folder(folder: str | Path) -> np.ndarray:
     return stacked
 
 
+def load_sldy_stack(
+    path: str | Path,
+    acquisition_index: int = 0,
+    channel_index: int = 0,
+) -> np.ndarray:
+    """Load a SlideBook .sldy file into a (T, H, W) float64 stack.
+
+    Args:
+        path: Path to the .sldy file.
+        acquisition_index: Which acquisition (capture) to load (default 0).
+        channel_index: Which fluorescence channel to load (default 0).
+
+    Returns:
+        Normalised float64 array of shape (T, H, W).
+    """
+    try:
+        from sld import SlideBook
+    except ImportError as exc:
+        raise ImportError(
+            "slidebook-python is required to read .sldy files: pip install slidebook-python"
+        ) from exc
+
+    path = Path(path)
+    sb = SlideBook(path)
+    if not sb.images:
+        raise ValueError(f"No acquisitions found in {path}")
+    if acquisition_index >= len(sb.images):
+        raise IndexError(
+            f"acquisition_index {acquisition_index} out of range "
+            f"({len(sb.images)} acquisitions in file)"
+        )
+
+    acq = sb.images[acquisition_index]
+    if not acq.channels:
+        raise ValueError(f"No channels found in acquisition {acquisition_index}")
+    if channel_index >= len(acq.channels):
+        raise IndexError(
+            f"channel_index {channel_index} out of range "
+            f"({len(acq.channels)} channels in acquisition)"
+        )
+
+    ch_key = f"ch_{acq.channels[channel_index]}"
+    frames_raw = acq.data[ch_key]  # list of np.ndarray, one per file/timepoint
+
+    # Sort by natural filename order so timepoints are in sequence
+    ch_paths = sorted(
+        acq._directory.glob(f"ImageData_Ch{acq.channels[channel_index]}*.npy"),
+        key=lambda p: natural_sort_key(p.name),
+    )
+    frames = [np.load(str(p)) for p in ch_paths]
+
+    if not frames:
+        raise ValueError(f"No image data found for channel {ch_key}")
+
+    # Each frame may be (H, W) or (Z, H, W) — flatten Z by max projection if needed
+    normalised = []
+    for f in frames:
+        arr = np.asarray(f)
+        if arr.ndim == 3:
+            arr = arr.max(axis=0)  # Z max projection → (H, W)
+        normalised.append(arr)
+
+    stack = np.stack(normalised, axis=0)  # (T, H, W)
+    return _normalise_stack(stack)
+
+
 def load_from_array(path_or_arr: Union[str, Path, np.ndarray]) -> np.ndarray:
     if isinstance(path_or_arr, (str, Path)):
         arr = np.load(str(path_or_arr))

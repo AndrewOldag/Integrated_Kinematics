@@ -13,7 +13,7 @@ import numpy as np
 from .analysis import run_steady_state_kinematics, save_results, save_analysis_ready_csv
 from .naming_config import NamingConfig
 from .auto_midline import AutoMidlineResult, extract_auto_midline
-from .image_io import load_image_folder, load_image_stack, natural_sort_key
+from .image_io import load_image_folder, load_image_stack, load_sldy_stack, natural_sort_key
 from .manual_input import (
     coords_xy_to_rowcol,
     resample_polyline_xy,
@@ -23,12 +23,15 @@ from .manual_input import (
 
 RunMode = Literal["manual", "auto"]
 
+# Extended kind to include sldy
+DatasetKind = Literal["folder_sequence", "single_stack", "sldy"]
+
 
 @dataclass
 class DatasetSpec:
     dataset_id: str
     label: str
-    kind: Literal["folder_sequence", "single_stack"]
+    kind: Literal["folder_sequence", "single_stack", "sldy"]
     source_path: Path
     files: list[Path]
 
@@ -40,6 +43,28 @@ class PipelineResult:
     init_mode_used: Literal["manual", "auto_approved", "auto_denied_manual", "auto_failed_manual"]
     status: Literal["ok", "failed"]
     message: str = ""
+
+
+def discover_sldy_datasets(root_folder: str | Path) -> list[DatasetSpec]:
+    """Discover SlideBook .sldy datasets under root_folder."""
+    root = Path(root_folder)
+    if not root.exists():
+        raise FileNotFoundError(f"Root folder not found: {root}")
+
+    datasets: list[DatasetSpec] = []
+    for sldy_path in sorted(root.rglob("*.sldy"), key=lambda p: natural_sort_key(str(p))):
+        rel = sldy_path.relative_to(root)
+        dataset_id = _sanitize_id(str(rel.with_suffix("")))
+        datasets.append(
+            DatasetSpec(
+                dataset_id=dataset_id,
+                label=str(rel),
+                kind="sldy",
+                source_path=sldy_path,
+                files=[sldy_path],
+            )
+        )
+    return datasets
 
 
 def discover_tiff_datasets(root_folder: str | Path) -> list[DatasetSpec]:
@@ -100,6 +125,8 @@ def discover_tiff_datasets(root_folder: str | Path) -> list[DatasetSpec]:
 def load_dataset_stack(dataset: DatasetSpec) -> np.ndarray:
     if dataset.kind == "folder_sequence":
         return load_image_folder(dataset.source_path)
+    if dataset.kind == "sldy":
+        return load_sldy_stack(dataset.source_path)
     return load_image_stack(dataset.source_path)
 
 
@@ -204,9 +231,10 @@ def run_batch(
     naming_config: Optional[NamingConfig] = None,
     tracking_frame_callback: Optional[Callable[[int, int, np.ndarray, np.ndarray], None]] = None,
 ) -> list[PipelineResult]:
-    datasets = discover_tiff_datasets(root_folder)
+    datasets = discover_tiff_datasets(root_folder) + discover_sldy_datasets(root_folder)
+    datasets = sorted(datasets, key=lambda ds: ds.dataset_id)
     if not datasets:
-        raise FileNotFoundError("No TIFF datasets found under selected root folder.")
+        raise FileNotFoundError("No TIFF or .sldy datasets found under selected root folder.")
 
     if progress_callback:
         progress_callback(f"Found {len(datasets)} datasets.")

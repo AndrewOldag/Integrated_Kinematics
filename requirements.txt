@@ -5,8 +5,6 @@ tifffile
 pandas
 opencv-python
 PySide6
-streamlit
-streamlit-drawable-canvas
 torch
 segmentation-models-pytorch
 scikit-image
